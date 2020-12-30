@@ -15,7 +15,7 @@ public:
 		K key;
 		V value;
 	public:
-		Item(K _key, V _value) : key(_key), value(_value) {}
+		Item(const K& _key, const V& _value) : key(_key), value(_value) {}
 		~Item() { key.~K(); value.~V(); }
 
 		K& GetKey() { return key; }
@@ -184,9 +184,9 @@ public:
 
 	V& operator[](const K& key)
 	{
+		size_t itemHash = getBucketIndex(key);
 		if (contains(key))
 		{
-			size_t itemHash = getBucketIndex(key);
 			for (size_t i = 0; i < bucketLoad[itemHash]; i++)
 			{
 				Item item = buckets[itemHash][i];
@@ -196,9 +196,14 @@ public:
 		}
 		else
 		{
-			put(key, V());
+			if (CheckOverload(itemHash))
+				FixOverload();
+
+			Item* item = buckets[itemHash] + bucketLoad[itemHash];
+			new (item) Item(key, V());
+			bucketLoad[itemHash]++;
+			return item->GetValue();
 		}
-		return (*this)[key];
 	}
 	const V& operator[](const K& key) const
 	{
