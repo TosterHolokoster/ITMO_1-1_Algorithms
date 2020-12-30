@@ -104,11 +104,13 @@ public:
     {
         CheckCapacity();
 
-        for (int i = ++length; i > index; i--)
+        new (_array + length) T();
+        for (int i = length; i > index; i--)
         {
             _array[i] = std::move(_array[i - 1]);
         }
         _array[index] = newItem;
+        ++length;
     }
 
     void remove(int index)
