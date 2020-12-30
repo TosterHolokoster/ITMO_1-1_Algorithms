@@ -3,11 +3,11 @@
 #include <string>
 
 
+const size_t BUCKET_COUNT_TABLE[5] = { 17, 31, 61, 127, 257 };
+
 template<typename K, typename V>
 class MyDictionary final
 {
-	void FixOverload() { throw std::exception("Finction not implemented!"); }
-
 public:
 	struct Item
 	{
@@ -30,18 +30,16 @@ public:
 
 
 private:
-	const size_t BUCKET_COUNT = 17;
+
+	size_t BUCKET_COUNT = 17;
 	const size_t BUCKET_SIZE = 8;
 	const float LOAD_FACTOR = .75f;
+
 
 	Bucket* buckets;
 	size_t* bucketLoad;
 
 	std::hash<K> defaultHash;
-	size_t defaultHashFunction(const K& Key) const
-	{
-		return defaultHash(Key);
-	}
 
 	size_t (*hash_function)(const K& Key);
 
@@ -50,10 +48,54 @@ private:
 		if(hash_function != nullptr)
 			return hash_function(Key) % BUCKET_COUNT;
 		else
-			return defaultHashFunction(Key) % BUCKET_COUNT;
+			return defaultHash(Key) % BUCKET_COUNT;
 	}
 
 	bool CheckOverload(size_t bucketID) { return bucketLoad[bucketID] + 1 >= BUCKET_SIZE * LOAD_FACTOR; }
+
+	void FixOverload()
+	{
+		// Allocated new memory
+		size_t newBucketCount = getNextBucketCount(BUCKET_COUNT);
+		Bucket* newBucket = static_cast<Bucket*>(malloc(newBucketCount * sizeof(Bucket)));
+		size_t* newBucketLoad = static_cast<size_t*>(malloc(newBucketCount * sizeof(size_t)));
+
+		for (size_t i = 0; i < newBucketCount; i++)
+		{
+			newBucket[i] = static_cast<Bucket>(malloc(BUCKET_SIZE * sizeof(Item)));
+			newBucketLoad[i] = 0;
+		}
+
+		// Copy elements and free old memory
+		for (size_t i = 0; i < BUCKET_COUNT; i++)
+		{
+			for (size_t q = 0; q < bucketLoad[i]; q++)
+			{
+				size_t bucketID = getBucketIndex(buckets[i][q].GetKey());
+				new (newBucket[bucketID] + newBucketLoad[bucketID]) Item(buckets[i][q].GetKey(), buckets[i][q].GetValue());
+				newBucketLoad[bucketID]++;
+				buckets[i][q].~Item();
+			}
+			free(buckets[i]);
+		}
+		free(buckets);
+		free(bucketLoad);
+
+		// Rebind pointers
+		BUCKET_COUNT = newBucketCount;
+		buckets = newBucket;
+		bucketLoad = newBucketLoad;
+	}
+
+	size_t getNextBucketCount(size_t currentBucketCount)
+	{
+		for (size_t capacity : BUCKET_COUNT_TABLE)
+		{
+			if (capacity > currentBucketCount)
+				return capacity;
+		}
+		throw std::exception("Max BUCKET_COUNT reached.");
+	}
 
 public:
 	MyDictionary(size_t (*customHashFunction)(const K& Key) = nullptr)
@@ -99,9 +141,9 @@ public:
 	{
 		if (contains(key))
 		{
-			size_t itemHash = getBucketIndex(key);
-			Bucket bucket = buckets[itemHash];
-			for (size_t i = 0; i < bucketLoad[itemHash]; i++)
+			size_t bucketID = getBucketIndex(key);
+			Bucket bucket = buckets[bucketID];
+			for (size_t i = 0; i < bucketLoad[bucketID]; i++)
 			{
 				Item item = bucket[i];
 				if (item.GetKey() == key)
@@ -109,14 +151,14 @@ public:
 					item.~Item();
 
 					// Shift items in bucket;
-					for (; i < bucketLoad[itemHash] - 1; i++)
+					for (; i < bucketLoad[bucketID] - 1; i++)
 					{
 						std::swap(bucket[i], bucket[i + 1]);
 					}
 					break;
 				}
 			}
-			bucketLoad[itemHash]--;
+			bucketLoad[bucketID]--;
 		}
 	}
 
