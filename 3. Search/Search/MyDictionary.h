@@ -1,4 +1,6 @@
 #pragma once
+#include <functional>
+#include <string>
 
 
 template<typename K, typename V>
@@ -35,24 +37,37 @@ private:
 	Bucket* buckets;
 	size_t* bucketLoad;
 
-	inline size_t hash(const K& Key) const
+	std::hash<K> defaultHash;
+	size_t defaultHashFunction(const K& Key) const
 	{
-		return reinterpret_cast<unsigned long>(&Key) % BUCKET_COUNT;
+		return defaultHash(Key);
+	}
+
+	size_t (*hash_function)(const K& Key);
+
+	inline size_t getBucketIndex(const K& Key) const
+	{
+		if(hash_function != nullptr)
+			return hash_function(Key) % BUCKET_COUNT;
+		else
+			return defaultHashFunction(Key) % BUCKET_COUNT;
 	}
 
 	bool CheckOverload(size_t bucketID) { return bucketLoad[bucketID] + 1 >= BUCKET_SIZE * LOAD_FACTOR; }
 
 public:
-	MyDictionary()
+	MyDictionary(size_t (*customHashFunction)(const K& Key) = nullptr)
 	{
+		hash_function = customHashFunction;
+
 		// Initialzation of Buckets Array
-		buckets = static_cast<Bucket*>( malloc(BUCKET_COUNT * sizeof(Bucket)) );
-		bucketLoad = static_cast<size_t*>( malloc(BUCKET_COUNT * sizeof(size_t)) );
+		buckets = static_cast<Bucket*>(malloc(BUCKET_COUNT * sizeof(Bucket)));
+		bucketLoad = static_cast<size_t*>(malloc(BUCKET_COUNT * sizeof(size_t)));
 
 		// Initialzation of each Bucket; Set zero load of buckets;
 		for (size_t i = 0; i < BUCKET_COUNT; i++)
 		{
-			buckets[i] = static_cast<Bucket>( malloc(BUCKET_SIZE * sizeof(Item)) );
+			buckets[i] = static_cast<Bucket>(malloc(BUCKET_SIZE * sizeof(Item)));
 			bucketLoad[i] = 0;
 		}
 	}
@@ -72,7 +87,7 @@ public:
 
 	void put(const K& key, const V& value)
 	{
-		size_t itemHash = hash(key);
+		size_t itemHash = getBucketIndex(key);
 
 		if (CheckOverload(itemHash))
 			FixOverload();
@@ -84,7 +99,7 @@ public:
 	{
 		if (contains(key))
 		{
-			size_t itemHash = hash(key);
+			size_t itemHash = getBucketIndex(key);
 			Bucket bucket = buckets[itemHash];
 			for (size_t i = 0; i < bucketLoad[itemHash]; i++)
 			{
@@ -107,7 +122,7 @@ public:
 
 	bool contains(const K& key) const
 	{
-		size_t itemHash = hash(key);
+		size_t itemHash = getBucketIndex(key);
 		for (size_t q = 0; q < bucketLoad[itemHash]; q++)
 		{
 			if (buckets[itemHash][q].GetKey() == key)
@@ -129,7 +144,7 @@ public:
 	{
 		if (contains(key))
 		{
-			size_t itemHash = hash(key);
+			size_t itemHash = getBucketIndex(key);
 			for (size_t i = 0; i < bucketLoad[itemHash]; i++)
 			{
 				Item item = buckets[itemHash][i];
@@ -147,7 +162,7 @@ public:
 	{
 		if (contains(key))
 		{
-			size_t itemHash = hash(key);
+			size_t itemHash = getBucketIndex(key);
 			for (size_t i = 0; i < bucketLoad[itemHash]; i++)
 			{
 				Item item = buckets[itemHash][i];
